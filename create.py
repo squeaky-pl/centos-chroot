@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
 from os import getuid, makedirs, errno
-from os.path import abspath, join
+from os.path import abspath, join, dirname, normpath, exists
 from sys import exit, argv
 from shutil import copy2
 from subprocess import check_output, check_call, CalledProcessError
+from xml.etree import ElementTree
+
 
 def check_root():
     if getuid() != 0:
@@ -36,6 +38,33 @@ def get_arch(archive):
 
             return arch
 
+
+def find_spec():
+    current = dirname(abspath(__file__))
+
+    while 1:
+        spec = join(current, 'chroot.spec.xml')
+        if exists(spec):
+            return spec
+
+        if current == '/':
+            break
+
+        current = normpath(join(current, '..'))
+
+
+def parse_spec(spec):
+    result = {}
+
+    root = ElementTree.parse(spec).getroot()
+
+    packages = root.find('packages')
+    if packages is not None:
+        result['packages'] = packages.text.split()
+
+    return result
+
+
 def main():
     if len(argv) < 2:
         print_usage()
@@ -65,19 +94,29 @@ def main():
             if e.returncode != okcode:
                 raise
 
+    def install(package):
+        arch_call(['yum', '-c', 'yum.conf', '-y', '--installroot', dest,
+                   'install', package])
+
     arch_call(['rpm', '--root', dest, '--initdb'])
     arch_call(['rpm', '-ivh', '--force-debian', '--nodeps', '--root',
                dest, argv[1]], 1)
     check_call(['rm', '-r', '/etc/pki'])
     check_call(['ln', '-s', join(dest, 'etc/pki'), '/etc/pki'])
 
-    arch_call(['yum', '-c', 'yum.conf', '-y', '--installroot', dest,
-               'install', 'yum'])
+    install('yum')
 
     copy2('/etc/resolv.conf', join(dest, 'etc'))
 
     with open(join(dest, 'arch'), 'w') as f:
         f.write(arch)
+
+    spec = find_spec()
+    print("Using spec file: " + spec)
+    spec = parse_spec(spec)
+
+    for package in spec.get('packages', []):
+        install(package)
 
 if __name__ == '__main__':
     main()
