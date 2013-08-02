@@ -12,7 +12,7 @@ mount --bind /dev $dest/dev
 mount --bind /proc $dest/proc
 mount --bind /sys $dest/sys
 
-ARCH=$(cat $dest/opt/prefix/arch)
+ARCH=$(cat $dest/arch)
 
 HOME=/root setarch $ARCH chroot $dest /bin/bash
 

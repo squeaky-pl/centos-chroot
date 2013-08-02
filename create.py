@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
 from os import getuid, makedirs, errno
-from os.path import abspath, join, dirname, normpath, exists, isabs
+from os.path import abspath, join, dirname, normpath, exists, isabs, basename
 from sys import exit, argv
 from shutil import copy2
 from subprocess import check_output, check_call, CalledProcessError
 from xml.etree import ElementTree
+from textwrap import dedent
 
 
 def check_root():
@@ -58,6 +59,10 @@ def parse_spec(spec):
 
     root = ElementTree.parse(spec).getroot()
 
+    repositories = root.find('repositories')
+    if repositories is not None:
+        result['repositories'] = repositories.text.split()
+
     packages = root.find('packages')
     if packages is not None:
         result['packages'] = packages.text.split()
@@ -76,6 +81,13 @@ def parse_spec(spec):
             src = join(dirname(spec), src)
 
             result['files'][src] = dest
+
+    appends = root.findall('append')
+    if appends:
+        result['appends'] = {}
+        for append in appends:
+            path = append.attrib['path']
+            result['appends'][path] = dedent(append.text.strip())
 
     return result
 
@@ -102,6 +114,7 @@ def main():
 
     print("creating in " + dest)
 
+    name = basename(dest)
     dest = abspath(dest)
 
     ensuredirs(join(dest, 'var/lib/rpm'))
@@ -130,12 +143,20 @@ def main():
     with open(join(dest, 'arch'), 'w') as f:
         f.write(arch)
 
+    with open(join(dest, 'root/.bashrc'), 'w') as f:
+        f.write('export PS1=({0})$PS1\n'.format(name))
+
     spec = find_spec()
     if not spec:
         return
 
     print("Using spec file: " + spec)
     spec = parse_spec(spec)
+
+    for repository in spec.get('repositories', []):
+        filename = basename(repository)
+        check_call(['wget', '-O', join(dest, 'etc/yum.repos.d', filename),
+                    repository])
 
     for package in spec.get('packages', []):
         install(package)
@@ -155,6 +176,14 @@ def main():
         destination = join(dest, destination)
         print("Copying {0} to {1}".format(src, destination))
         copy2(src, destination)
+
+    for path, data in spec.get('appends', {}).items():
+        if isabs(path):
+            path = path[1:]
+
+        print("Appending to " + path)
+        with open(join(dest, path), 'a') as f:
+            f.write(data)
 
 
 if __name__ == '__main__':
