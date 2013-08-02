@@ -1,12 +1,15 @@
 #!/usr/bin/env python
 
 from os import getuid, makedirs, errno
-from os.path import abspath, join, dirname, normpath, exists, isabs, basename
+from os.path import (abspath, join, dirname, normpath, exists, isabs, basename,
+                     isdir)
 from sys import exit, argv
 from shutil import copy2
 from subprocess import check_output, check_call, CalledProcessError
 from xml.etree import ElementTree
 from textwrap import dedent
+from urlparse import urlparse
+from tempfile import mkdtemp
 
 
 def check_root():
@@ -89,6 +92,18 @@ def parse_spec(spec):
             path = append.attrib['path']
             result['appends'][path] = dedent(append.text.strip())
 
+    unpack = root.find('unpack')
+    if unpack is not None:
+        unpack = unpack.text.strip()
+        result['unpack'] = {}
+
+        for line in unpack.splitlines():
+            line = line.split()
+            src, dest = line[:2]
+            strip = line[2] if len(line) == 3 else 0
+
+            result['unpack'][src] = (dest, strip)
+
     return result
 
 
@@ -98,6 +113,26 @@ def ensuredirs(dirs):
     except OSError as e:
         if not e.errno == errno.EEXIST:
             raise
+
+
+def urlcopy(src, dest):
+    if isdir(dest):
+        dest = join(dest, basename(src))
+
+    if urlparse(src).scheme:
+        check_call(['wget', '-O', dest, src])
+    else:
+        copy2(src, dest)
+
+    return dest
+
+
+def unpack(src, dest, strip=0):
+    if urlparse(src).scheme:
+        tempdir = mkdtemp()
+        src = urlcopy(src, tempdir)
+
+    check_call(['tar', 'xf', src, '--strip-components=' + strip, '-C', dest])
 
 
 def main():
@@ -154,9 +189,7 @@ def main():
     spec = parse_spec(spec)
 
     for repository in spec.get('repositories', []):
-        filename = basename(repository)
-        check_call(['wget', '-O', join(dest, 'etc/yum.repos.d', filename),
-                    repository])
+        urlcopy(repository, join(dest, 'etc/yum.repos.d'))
 
     for package in spec.get('packages', []):
         install(package)
@@ -175,7 +208,7 @@ def main():
 
         destination = join(dest, destination)
         print("Copying {0} to {1}".format(src, destination))
-        copy2(src, destination)
+        urlcopy(src, destination)
 
     for path, data in spec.get('appends', {}).items():
         if isabs(path):
@@ -185,6 +218,13 @@ def main():
         with open(join(dest, path), 'a') as f:
             f.write(data)
 
+    for src, rest in spec.get('unpack', {}).items():
+        path, strip = rest
+        if isabs(path):
+            path = path[1:]
+
+        print("Unpackig {0} to {1}".format(src, dest))
+        unpack(src.format(arch=arch), join(dest, path), strip)
 
 if __name__ == '__main__':
     main()
