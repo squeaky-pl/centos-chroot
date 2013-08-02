@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from os import getuid, makedirs, errno
-from os.path import abspath, join, dirname, normpath, exists
+from os.path import abspath, join, dirname, normpath, exists, isabs
 from sys import exit, argv
 from shutil import copy2
 from subprocess import check_output, check_call, CalledProcessError
@@ -62,7 +62,30 @@ def parse_spec(spec):
     if packages is not None:
         result['packages'] = packages.text.split()
 
+    directories = root.find('directories')
+    if directories is not None:
+        result['directories'] = directories.text.split()
+
+    files = root.find('files')
+    if files is not None:
+        files = files.text.strip()
+        result['files'] = {}
+
+        for line in files.splitlines():
+            src, dest = line.split()
+            src = join(dirname(spec), src)
+
+            result['files'][src] = dest
+
     return result
+
+
+def ensuredirs(dirs):
+    try:
+        makedirs(dirs)
+    except OSError as e:
+        if not e.errno == errno.EEXIST:
+            raise
 
 
 def main():
@@ -81,11 +104,7 @@ def main():
 
     dest = abspath(dest)
 
-    try:
-        makedirs(join(dest, 'var/lib/rpm'))
-    except OSError as e:
-        if not e.errno == errno.EEXIST:
-            raise
+    ensuredirs(join(dest, 'var/lib/rpm'))
 
     def arch_call(args, okcode=None):
         try:
@@ -112,11 +131,31 @@ def main():
         f.write(arch)
 
     spec = find_spec()
+    if not spec:
+        return
+
     print("Using spec file: " + spec)
     spec = parse_spec(spec)
 
     for package in spec.get('packages', []):
         install(package)
+
+    for directory in spec.get('directories', []):
+        if isabs(directory):
+            directory = directory[1:]
+
+        directory = join(dest, directory)
+        print("Creating " + directory)
+        ensuredirs(directory)
+
+    for src, destination in spec.get('files', {}).items():
+        if isabs(destination):
+            destination = destination[1:]
+
+        destination = join(dest, destination)
+        print("Copying {0} to {1}".format(src, destination))
+        copy2(src, destination)
+
 
 if __name__ == '__main__':
     main()
