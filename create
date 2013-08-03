@@ -171,9 +171,11 @@ def main():
             if e.returncode != okcode:
                 raise
 
+    here = dirname(abspath(__file__))
+
     def install(package):
-        arch_call(['yum', '-c', 'yum.conf', '-y', '--installroot', dest,
-                   'install', package])
+        arch_call(['yum', '-c', join(here, 'yum.conf'), '-y',
+                   '--installroot', dest, 'install', package])
 
     arch_call(['rpm', '--root', dest, '--initdb'])
     arch_call(['rpm', '-ivh', '--force-debian', '--nodeps', '--root',
