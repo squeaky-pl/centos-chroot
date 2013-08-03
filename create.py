@@ -104,6 +104,11 @@ def parse_spec(spec):
 
             result['unpack'][src] = (dest, strip)
 
+    scripts = root.find('scripts')
+    if scripts is not None:
+        here = dirname(abspath(__file__))
+        result['scripts'] = [join(here, s) for s in scripts.text.split()]
+
     return result
 
 
@@ -225,6 +230,10 @@ def main():
 
         print("Unpackig {0} to {1}".format(src, dest))
         unpack(src.format(arch=arch), join(dest, path), strip)
+
+    for script in spec.get('scripts', []):
+        print "Running " + script
+        check_call([script, dest])
 
 if __name__ == '__main__':
     main()
