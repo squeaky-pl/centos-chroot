@@ -111,7 +111,7 @@ def parse_spec(spec):
 
     scripts = root.find('run')
     if scripts is not None:
-        here = dirname(abspath(__file__))
+        here = dirname(abspath(spec))
         result['run'] = [join(here, s) for s in scripts.text.split()]
 
     return result
