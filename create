@@ -142,7 +142,8 @@ def unpack(src, dest, strip=0):
         tempdir = mkdtemp()
         src = urlcopy(src, tempdir)
 
-    check_call(['tar', 'xf', src, '--strip-components=' + strip, '-C', dest])
+    check_call(['tar', 'xf', src,
+                '--strip-components=' + str(strip), '-C', dest])
 
 
 def main():
