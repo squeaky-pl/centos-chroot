@@ -4,7 +4,7 @@ from os import getuid, makedirs, errno
 from os.path import (abspath, join, dirname, normpath, exists, isabs, basename,
                      isdir)
 from sys import exit, argv
-from shutil import copy2
+from shutil import copy2, copytree, rmtree
 from subprocess import check_output, check_call, CalledProcessError
 from xml.etree import ElementTree
 from textwrap import dedent
@@ -132,7 +132,12 @@ def urlcopy(src, dest):
     if urlparse(src).scheme:
         check_call(['wget', '-O', dest, src])
     else:
-        copy2(src, dest)
+        if isdir(src):
+            if exists(dest):
+                rmtree(dest)
+            copytree(src, dest)
+        else:
+            copy2(src, dest)
 
     return dest
 
@@ -142,7 +147,11 @@ def unpack(src, dest, strip=0):
         tempdir = mkdtemp()
         src = urlcopy(src, tempdir)
 
-    check_call(['tar', 'xf', src, '--strip-components=' + strip, '-C', dest])
+    if not exists(dest):
+        makedirs(dest)
+
+    check_call(['tar', 'xf', src,
+                '--strip-components=' + str(strip), '-C', dest])
 
 
 def main():
