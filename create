@@ -180,7 +180,7 @@ def main():
     arch_call(['rpm', '--root', dest, '--initdb'])
     arch_call(['rpm', '-ivh', '--force-debian', '--nodeps', '--root',
                dest, argv[1]], 1)
-    check_call(['rm', '-r', '/etc/pki'])
+    check_call(['rm', '-rf', '/etc/pki'])
     check_call(['ln', '-s', join(dest, 'etc/pki'), '/etc/pki'])
 
     install('yum')
