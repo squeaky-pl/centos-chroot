@@ -183,14 +183,33 @@ def main():
     here = dirname(abspath(__file__))
 
     def install(package):
+        temppki = '/etc/pki.centos-chroot.orig'
+
+        if exists('/etc/pki'):
+            check_call(['mv', '/etc/pki', temppki])
+
+        check_call(['ln', '-s', join(dest, 'etc/pki'), '/etc/pki'])
+
         arch_call(['yum', '-c', join(here, 'yum.conf'), '-y',
                    '--installroot', dest, 'install', package])
 
+        check_call(['rm', '/etc/pki'])
+        if exists(temppki):
+            check_call(['mv', temppki, '/etc/pki'])
+
+
+    rpm_based = True
+    try:
+        check_call(['bash', '-c', 'grep -q ^NAME=Fedora /etc/*-release'])
+    except CalledProcessError:
+        rpm_based = False
+
     arch_call(['rpm', '--root', dest, '--initdb'])
-    arch_call(['rpm', '-ivh', '--force-debian', '--nodeps', '--root',
-               dest, argv[1]], 1)
-    check_call(['rm', '-rf', '/etc/pki'])
-    check_call(['ln', '-s', join(dest, 'etc/pki'), '/etc/pki'])
+    args = ['rpm', '-ivh', '--force-debian', '--nodeps', '--root', dest, argv[1]]
+    if rpm_based:
+        args.remove('--force-debian')
+    arch_call(args, 1)
+
 
     install('yum')
 
@@ -248,7 +267,7 @@ def main():
         unpack(src.format(arch=arch), join(dest, path), strip)
 
     for script in spec['run']:
-        print "Running " + script
+        print("Running " + script)
         check_call([script, dest])
 
 if __name__ == '__main__':
