@@ -183,19 +183,8 @@ def main():
     here = dirname(abspath(__file__))
 
     def install(package):
-        temppki = '/etc/pki.centos-chroot.orig'
-
-        if exists('/etc/pki'):
-            check_call(['mv', '/etc/pki', temppki])
-
-        check_call(['ln', '-s', join(dest, 'etc/pki'), '/etc/pki'])
-
-        arch_call(['yum', '-c', join(here, 'yum.conf'), '-y',
+        arch_call(['yum', '--nogpgcheck', '-c', join(here, 'yum.conf'), '-y',
                    '--installroot', dest, 'install', package])
-
-        check_call(['rm', '/etc/pki'])
-        if exists(temppki):
-            check_call(['mv', temppki, '/etc/pki'])
 
 
     rpm_based = True
